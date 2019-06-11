@@ -4,6 +4,10 @@ version: "{build}-{branch}"
 
 configuration: Release
 
+platform:
+  - Win32
+  - x64
+
 cache:
   - node_modules
   - "%LOCALAPPDATA%\\Yarn"
@@ -21,6 +25,7 @@ install:
   - ps: (New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/Ortham/ci-scripts/2.0.0/delete_old_bintray_versions.py', "$env:APPVEYOR_BUILD_FOLDER\delete_old_bintray_versions.py")
   - ps: (New-Object Net.WebClient).DownloadFile('https://github.com/Ortham/svg_to_ico/releases/download/0.1.0/svg_to_ico.7z', "$env:APPVEYOR_BUILD_FOLDER\svg_to_ico.7z")
   - 7z e -y svg_to_ico.7z
+  - ps: if ($env:PLATFORM -eq "Win32") { $env:ADDRESS_MODEL = '32' } else { $env:ADDRESS_MODEL = '64' }
 
 
 before_build:
@@ -28,7 +33,12 @@ before_build:
   - ps: mkdir build
   - .\svg_to_ico.exe -i resources\icon.svg -o build\icon\icon.ico
   - cd build
-  - cmake .. -G "Visual Studio 15 2017" -DBOOST_ROOT="C:\Libraries\boost_1_67_0" -DBOOST_LIBRARYDIR="C:\Libraries\boost_1_67_0\lib32-msvc-14.1" -DMSVC_STATIC_RUNTIME=ON
+  - ps: |
+      if ($env:PLATFORM -eq 'Win32') {
+        cmake .. -G "Visual Studio 15 2017" -DBOOST_ROOT="C:\Libraries\boost_1_67_0" -DBOOST_LIBRARYDIR="C:\Libraries\boost_1_67_0\lib32-msvc-14.1" -DMSVC_STATIC_RUNTIME=ON
+      } else {
+        cmake .. -G "Visual Studio 15 2017 Win64" -DBOOST_ROOT="C:\Libraries\boost_1_67_0" -DBOOST_LIBRARYDIR="C:\Libraries\boost_1_67_0\lib64-msvc-14.1" -DMSVC_STATIC_RUNTIME=ON
+      }
 
 build:
   verbosity: minimal
@@ -50,9 +60,10 @@ after_test:
   - node scripts\potomo.js
   - ps: scripts\appveyor\build_installer.ps1
   - node scripts\archive.js
+  - ps: mv build\loot_${env:LOOT_VERSION}.7z build\loot_${env:LOOT_VERSION}-win${env:ADDRESS_MODEL}.7z
 
 artifacts:
-  - path: build\loot_$(LOOT_VERSION).7z
+  - path: build\loot_$(LOOT_VERSION)-win$(ADDRESS_MODEL).7z
     name: LOOT
   - path: build\LOOT Installer.exe
     name: installer
